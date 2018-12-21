@@ -1,17 +1,27 @@
 set the icon_file to (path to resource "applet.icns")
+set the alert_icon to (path to resource "alerticon.icns")
+
+--Check for an internet connection / conenction to AD server
+repeat with i from 1 to 2
+	try
+		do shell script "ping -o -t 2 ad.vassar.edu"
+		exit repeat
+	on error
+		display dialog "Unable to connect to the Internet.
+You need an internet connection to perform a migration." buttons {"Ok"} default button 1 with icon alert_icon
+		if button returned of result is "Ok" then error number -128 (* user cancelled *)
+	end try
+end repeat
+
+--Kill Sophos
 do shell script "launchctl unload -w /Library/LaunchDaemons/com.sophos.common.servicemanager.plist" with administrator privileges and password
-do shell script "diskutil rename /dev/disk2s1 Old_Mac > /dev/null 2>&1 &"
-do shell script "diskutil rename /dev/disk3s1 Old_Mac > /dev/null 2>&1 &"
-do shell script "diskutil rename /dev/disk4s1 Old_Mac > /dev/null 2>&1 &"
-do shell script "diskutil rename /dev/disk2s2 Old_Mac > /dev/null 2>&1 &"
-do shell script "diskutil rename /dev/disk3s2 Old_Mac > /dev/null 2>&1 &"
-do shell script "diskutil rename /dev/disk4s2 Old_Mac > /dev/null 2>&1 &"
-do shell script "diskutil rename /dev/disk3 Old_Mac > /dev/null 2>&1 &"
-do shell script "diskutil rename /dev/disk2 Old_Mac > /dev/null 2>&1 &"
-do shell script "diskutil rename /dev/disk4 Old_Mac > /dev/null 2>&1 &"
-do shell script "diskutil rename /dev/disk2s3 Old_Mac > /dev/null 2>&1 &"
-do shell script "diskutil rename /dev/disk3s3 Old_Mac > /dev/null 2>&1 &"
-do shell script "diskutil rename /dev/disk4s3 Old_Mac > /dev/null 2>&1 &"
+
+--Find and rename external drive
+set oldMac to do shell script "system_profiler SPStorageDataType | grep disk | awk '{ print $NF }' | tail +2"
+
+do shell script "diskutil rename /dev/" & oldMac & " \"Old_Mac\" > /dev/null 2>&1 &"
+
+--Setup
 set sourcePath to "Old_Mac:Users:"
 set sourcePathPosix to POSIX path of sourcePath
 set sourcePathCmd to "/Volumes/Old_Mac/Users/"
@@ -31,6 +41,7 @@ if button returned of result is "yes" then
 	do shell script "sed '/Shared/d' /tmp/removedguest.txt >/Users/Shared/FoundUsers.txt"
 else
 	do shell script "launchctl load -w /Library/LaunchDaemons/com.sophos.common.servicemanager.plist" with administrator privileges and password
+	do shell script "diskutil rename /dev/" & oldMac & " \"Macintosh HD\" > /dev/null 2>&1 &"
 	error number -128 (* user cancelled *)
 end if
 set progress description to "Migrating"
@@ -62,6 +73,8 @@ try
 	set progress additional description to "Converting to Network Account..."
 	do shell script "chflags -R nouchg /Users/" & selectedUser & "" with administrator privileges and password
 	do shell script "chown -Rv " & selectedUser & " /Users/" & selectedUser & "" with administrator privileges and password
+	do shell script "/usr/local/outset/outset --add-ignored-user " & selectedUser & " > /dev/null 2>&1 &" with administrator privileges and password
+	
 	set theCompletedText to "Migration of " & selectedUser & " user data completed at " & (current date) & "."
 	set progress description to "Finished"
 	set progress additional description to "User Migration Complete!"
@@ -71,6 +84,7 @@ on error errmsg
 	display dialog errmsg & " User Migration Failed! What now?" buttons {"Command Line Copy", "Cancel"} default button "Command Line Copy" with icon icon_file
 	if button returned of result is "Cancel" then
 		do shell script "launchctl load -w /Library/LaunchDaemons/com.sophos.common.servicemanager.plist" with administrator privileges
+		do shell script "diskutil rename /dev/" & oldMac & " \"Macintosh HD\" > /dev/null 2>&1 &"
 		error number -128 (* user cancelled *)
 	else
 		with timeout of (360 * 60) seconds
@@ -86,6 +100,7 @@ on error errmsg
 			do shell script "sed '/Shared/d' /tmp/removedguest.txt >/Users/Shared/FoundUsers.txt"
 		else
 			do shell script "launchctl load -w /Library/LaunchDaemons/com.sophos.common.servicemanager.plist" with administrator privileges
+			do shell script "diskutil rename /dev/" & oldMac & " \"Macintosh HD\" > /dev/null 2>&1 &"
 			error number -128 (* user cancelled *)
 		end if
 		set progress description to "Migrating"
