@@ -12,7 +12,7 @@ ShowVersion="$FullScriptName $Version"
 check4AD=`/usr/bin/dscl localhost -list . | grep "Active Directory"`
 osvers=$(sw_vers -productVersion | awk -F. '{print $2}')
 lookupAccount=usadmin
-OS=`/usr/bin/sw_vers | grep ProductVersion | cut -c 17-20`
+OS=`/usr/bin/sw_vers | grep ProductVersion | cut -c 17-21`
 
 echo "********* Running $FullScriptName Version $Version *********"
 
@@ -47,3 +47,5 @@ dseditgroup -o edit -n /Local/Default -u vassarjamf -P jamfjamfjamfjamf -a $sele
 chflags -R nouchg /Users/$selectedUser
 		
 chown -Rv $selectedUser /Users/$selectedUser
+
+/usr/local/outset/outset --add-ignored-user $selectedUser 2> /dev/null
